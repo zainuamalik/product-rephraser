@@ -1,3 +1,6 @@
+# Use flag --test for test mode on limited entries
+# Use flag --enhance-markup for markup improvement mode
+
 import os
 import json
 import logging
