@@ -1,7 +1,6 @@
 # FOR CUSTOM PORT: --server.port {custom_port}
 # FOR CUSTOM BASEURL PATH: --server.baseUrlPath={custom_base_url_path}
 
-
 import pandas as pd
 import streamlit as st
 import textwrap
@@ -9,7 +8,10 @@ import os
 import sys
 import argparse
 import os
+import hashlib
+from dotenv import load_dotenv
 
+load_dotenv()
 
 # Configuration
 CSV_PATH = os.environ.get(
@@ -18,6 +20,31 @@ CSV_PATH = os.environ.get(
 )
 PRODUCTS_PER_PAGE = 5
 HTML_HEIGHT = 550
+
+
+def check_password():
+    def password_entered():
+        if st.session_state["username"] == os.environ.get(
+            "BASIC_AUTH_USERNAME"
+        ) and st.session_state["password"] == os.environ.get("BASIC_AUTH_PASSWORD"):
+            st.session_state["authenticated"] = True
+            del st.session_state["password"]  # Don't store password
+        else:
+            st.session_state["authenticated"] = False
+
+    if "authenticated" not in st.session_state:
+        st.text_input("Username", key="username", on_change=password_entered)
+        st.text_input(
+            "Password", type="password", key="password", on_change=password_entered
+        )
+        st.stop()
+    elif not st.session_state["authenticated"]:
+        st.error("Invalid username or password")
+        st.text_input("Username", key="username", on_change=password_entered)
+        st.text_input(
+            "Password", type="password", key="password", on_change=password_entered
+        )
+        st.stop()
 
 
 def render_html_container(content):
@@ -42,6 +69,7 @@ def render_html_container(content):
 
 
 def main():
+    check_password()
     st.set_page_config(layout="wide", page_title="Product Comparison")
     st.title("Product Description Comparison Tool")
 
