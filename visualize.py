@@ -12,7 +12,7 @@ CSV_PATH = os.environ.get(
     "CSV_PATH",
     "data/output/rephrased_products_enhanced.csv",
 )
-PRODUCTS_PER_PAGE = 10
+PRODUCTS_PER_PAGE = 50
 
 
 def check_password():
