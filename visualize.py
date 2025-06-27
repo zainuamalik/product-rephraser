@@ -141,7 +141,7 @@ def main():
     with col_prev:
         if page > 1 and st.button("← Previous"):
             st.query_params = {"page": str(page - 1)}
-            st.experimental_rerun()
+            st.rerun()
 
     with col_page:
         new_page = st.number_input(
@@ -155,12 +155,12 @@ def main():
         )
         if new_page != page:
             st.query_params = {"page": str(new_page)}
-            st.experimental_rerun()
+            st.rerun()
 
     with col_next:
         if page < total_pages and st.button("Next →"):
             st.query_params = {"page": str(page + 1)}
-            st.experimental_rerun()
+            st.rerun()
 
 
 if __name__ == "__main__":
