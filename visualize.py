@@ -1,14 +1,8 @@
-# FOR CUSTOM PORT: --server.port {custom_port}
-# FOR CUSTOM BASEURL PATH: --server.baseUrlPath={custom_base_url_path}
-
+import os
+import argparse
 import pandas as pd
 import streamlit as st
 import textwrap
-import os
-import sys
-import argparse
-import os
-import hashlib
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,8 +12,7 @@ CSV_PATH = os.environ.get(
     "CSV_PATH",
     "data/output/rephrased_products_enhanced.csv",
 )
-PRODUCTS_PER_PAGE = 5
-HTML_HEIGHT = 550
+PRODUCTS_PER_PAGE = 10
 
 
 def check_password():
@@ -28,7 +21,7 @@ def check_password():
             "BASIC_AUTH_USERNAME"
         ) and st.session_state["password"] == os.environ.get("BASIC_AUTH_PASSWORD"):
             st.session_state["authenticated"] = True
-            del st.session_state["password"]  # Don't store password
+            del st.session_state["password"]
         else:
             st.session_state["authenticated"] = False
 
@@ -47,19 +40,14 @@ def check_password():
         st.stop()
 
 
-def render_html_container(content):
-    """Create a styled container for HTML content"""
-    if not content or not content.strip():
-        return "<p>No content</p>"
-
+def render_html_container(content: str) -> str:
+    """Wrap content in a styled div that expands to fit its children."""
     return f"""
     <div style='
-        background-color: white; 
-        color: black; 
+        background-color: white;
+        color: black;
         padding: 10px;
-        height: {HTML_HEIGHT}px; 
-        overflow-y: auto; 
-        border: 1px solid #ccc; 
+        border: 1px solid #ccc;
         border-radius: 5px;
         font-family: sans-serif;
     '>
@@ -69,29 +57,36 @@ def render_html_container(content):
 
 
 def main():
+    # Allow overriding port/base URL via CLI args
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--server.port", dest="custom_port", type=int)
+    parser.add_argument("--server.baseUrlPath", dest="custom_base_url_path", type=str)
+    args, _ = parser.parse_known_args()
+    if args.custom_port:
+        os.environ["STREAMLIT_SERVER_PORT"] = str(args.custom_port)
+    if args.custom_base_url_path:
+        os.environ["STREAMLIT_SERVER_BASEURL_PATH"] = args.custom_base_url_path
+
     check_password()
     st.set_page_config(layout="wide", page_title="Product Comparison")
     st.title("Product Description Comparison Tool")
 
     # Load data
     try:
-        df = pd.read_csv(CSV_PATH)
-        df = df.fillna("")
+        df = pd.read_csv(CSV_PATH).fillna("")
     except FileNotFoundError:
         st.error(f"Data file not found: {CSV_PATH}")
         return
     except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
+        st.error(f"Error loading data: {e}")
         st.stop()
 
     # Pagination setup
     total_products = len(df)
     total_pages = max(1, (total_products - 1) // PRODUCTS_PER_PAGE + 1)
-
-    # Get current page from query params
-    page = st.query_params.get("page", "1")
+    page_str = st.query_params.get("page", ["1"])[0]
     try:
-        page = max(1, min(int(page), total_pages))
+        page = max(1, min(int(page_str), total_pages))
     except ValueError:
         page = 1
 
@@ -104,51 +99,53 @@ def main():
         st.divider()
         st.subheader(f"Product ID: {row.get('id', 'N/A')}")
 
-        col_title1, col_title2 = st.columns(2)
-        with col_title1:
-            st.caption(f"**Original Title:**")
-            st.text(textwrap.shorten(row.get("title", ""), width=300))
+        # Titles
+        col_t1, col_t2 = st.columns(2)
+        with col_t1:
+            st.caption("**Original Title:**")
+            st.text(textwrap.shorten(row["title"], width=300))
+        with col_t2:
+            st.caption("**Rephrased Title:**")
+            st.text(textwrap.shorten(row["rephrased_title"], width=300))
 
-        with col_title2:
-            st.caption(f"**Rephrased Title:**")
-            st.text(textwrap.shorten(row.get("rephrased_title", ""), width=300))
-
+        # Descriptions
         col1, col2 = st.columns(2)
 
         # Original description
-        with col1:
-            st.markdown("**Original Description**")
-            st.components.v1.html(
-                render_html_container(row.get("description", "")),
-                height=HTML_HEIGHT + 20,
-            )
+        desc1 = row.get("description", "").strip()
+        if desc1:
+            with col1:
+                st.markdown("**Original Description**")
+                st.markdown(
+                    render_html_container(desc1),
+                    unsafe_allow_html=True,
+                )
 
         # Rephrased description
-        with col2:
-            st.markdown("**Rephrased Description**")
-            st.components.v1.html(
-                render_html_container(row.get("rephrased_description", "")),
-                height=HTML_HEIGHT + 20,
-            )
+        desc2 = row.get("rephrased_description", "").strip()
+        if desc2:
+            with col2:
+                st.markdown("**Rephrased Description**")
+                st.markdown(
+                    render_html_container(desc2),
+                    unsafe_allow_html=True,
+                )
 
     # Pagination controls
     st.divider()
-    # Updated to show both product range and page information
     st.caption(
         f"Showing products {start_idx + 1}-{end_idx} of {total_products} | Page {page} of {total_pages}"
     )
-
     col_prev, col_page, col_next = st.columns([1, 2, 1])
 
     with col_prev:
-        if page > 1:
-            if st.button("← Previous"):
-                st.query_params = {"page": str(page - 1)}
-                st.rerun()
+        if page > 1 and st.button("← Previous"):
+            st.query_params = {"page": str(page - 1)}
+            st.experimental_rerun()
 
     with col_page:
         new_page = st.number_input(
-            "Page",
+            "Page",  # non-empty label, but hidden
             min_value=1,
             max_value=total_pages,
             value=page,
@@ -158,13 +155,12 @@ def main():
         )
         if new_page != page:
             st.query_params = {"page": str(new_page)}
-            st.rerun()
+            st.experimental_rerun()
 
     with col_next:
-        if page < total_pages:
-            if st.button("Next →"):
-                st.query_params = {"page": str(page + 1)}
-                st.rerun()
+        if page < total_pages and st.button("Next →"):
+            st.query_params = {"page": str(page + 1)}
+            st.experimental_rerun()
 
 
 if __name__ == "__main__":
